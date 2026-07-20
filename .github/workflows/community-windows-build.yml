@@ -1,0 +1,74 @@
+name: Community Windows x64 build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build unsigned Windows x64 binaries
+    runs-on: windows-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: codex-rs
+    env:
+      CARGO_TARGET_DIR: ${{ runner.temp }}\codex-target
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      LIBSQLITE3_FLAGS: SQLITE_DISABLE_INTRINSIC
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Enable Git long paths
+        shell: pwsh
+        run: git config --global core.longpaths true
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.95.0
+          targets: x86_64-pc-windows-msvc
+
+      - name: Configure MSVC environment
+        uses: ./.github/actions/setup-msvc-env
+        with:
+          target: x86_64-pc-windows-msvc
+
+      - name: Build Codex and sandbox helpers
+        shell: pwsh
+        run: >-
+          cargo build
+          --locked
+          --release
+          --target x86_64-pc-windows-msvc
+          --bin codex
+          --bin codex-windows-sandbox-setup
+          --bin codex-command-runner
+
+      - name: Verify the executable
+        shell: pwsh
+        run: '& "$env:CARGO_TARGET_DIR\x86_64-pc-windows-msvc\release\codex.exe" --version'
+
+      - name: Stage binaries
+        shell: pwsh
+        run: |
+          $release = "$env:CARGO_TARGET_DIR\x86_64-pc-windows-msvc\release"
+          $stage = "$env:RUNNER_TEMP\codex-windows-x64"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item "$release\codex.exe" $stage
+          Copy-Item "$release\codex-windows-sandbox-setup.exe" $stage
+          Copy-Item "$release\codex-command-runner.exe" $stage
+
+      - name: Upload Windows x64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-windows-x64-${{ github.sha }}
+          path: ${{ runner.temp }}\codex-windows-x64\*
+          if-no-files-found: error
+          retention-days: 7
