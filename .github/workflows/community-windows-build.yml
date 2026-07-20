@@ -15,7 +15,7 @@ jobs:
       run:
         working-directory: codex-rs
     env:
-      CARGO_TARGET_DIR: ${{ runner.temp }}\codex-target
+      CARGO_TARGET_DIR: target
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
       LIBSQLITE3_FLAGS: SQLITE_DISABLE_INTRINSIC
 
